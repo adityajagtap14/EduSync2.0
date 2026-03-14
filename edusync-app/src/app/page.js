@@ -93,6 +93,17 @@ function LoginPage() {
 
       if (insertErr) throw new Error(insertErr.message);
 
+      // If faculty role, also create a faculty table record so they show in Dean roster
+      if (signupRole === 'faculty') {
+        await supabase.from('faculty').insert({
+          name: signupName.trim(),
+          email: emailLower,
+          department: 'Unassigned',
+          semester: 'Spring 2026',
+          is_phd: false,
+        });
+      }
+
       localStorage.setItem('edusync_user', JSON.stringify({
         id: newUser.id, name: newUser.name, email: newUser.email, role: newUser.role,
       }));

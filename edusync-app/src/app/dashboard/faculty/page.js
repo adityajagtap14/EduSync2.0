@@ -35,7 +35,8 @@ export default function FacultyPage() {
 
       if (!allFaculty || allFaculty.length === 0) { setLoading(false); return; }
 
-      const me = allFaculty.find(f => f.email === stored.email) || allFaculty[0];
+      const me = allFaculty.find(f => f.email === stored.email);
+      if (!me) { showToast('No faculty profile found for your account.', 'error'); setLoading(false); return; }
       setFaculty(me);
       setActivities((allActivities || []).filter(a => a.faculty_id === me.id));
     } catch (err) {
