@@ -53,7 +53,7 @@ CREATE TABLE IF NOT EXISTS settings (
 -- Demo passwords: dean123, faculty123, admin123
 INSERT INTO users (name, email, password_hash, role) VALUES
     ('Dean Admin', 'dean@edusync.edu', 'dean123', 'unified'),
-    ('Dr. A. Sharma', 'faculty@edusync.edu', 'faculty123', 'faculty'),
+    ('Dr. A. Sharma', 'sharma@edusync.edu', 'faculty123', 'faculty'),
     ('System Admin', 'admin@edusync.edu', 'admin123', 'admin')
 ON CONFLICT (email) DO NOTHING;
 
@@ -96,3 +96,12 @@ INSERT INTO activities (faculty_id, activity_type, description, hours, fte_value
     ((SELECT id FROM faculty WHERE email='kumar@edusync.edu'), 'Administrative', 'Departmental Seminar', 4.5, 9.0, 'Verified'),
     ((SELECT id FROM faculty WHERE email='iyer@edusync.edu'), 'Lecture', 'Thermodynamics', 12.5, 25.0, 'Verified'),
     ((SELECT id FROM faculty WHERE email='iyer@edusync.edu'), 'Mentoring', 'Student Mentoring', 5, 10.0, 'Verified');
+
+-- ═══════════════════════════════════════════════════════════════════
+-- ENABLE REALTIME (run once to sync data across all dashboards)
+-- ═══════════════════════════════════════════════════════════════════
+ALTER PUBLICATION supabase_realtime ADD TABLE activities;
+ALTER PUBLICATION supabase_realtime ADD TABLE users;
+ALTER PUBLICATION supabase_realtime ADD TABLE settings;
+ALTER PUBLICATION supabase_realtime ADD TABLE faculty;
+

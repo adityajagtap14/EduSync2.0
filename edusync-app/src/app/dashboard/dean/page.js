@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { supabase } from '@/lib/supabase';
 import { useToast } from '@/components/Toast';
 import Modal from '@/components/Modal';
@@ -11,6 +11,24 @@ export default function DeanPage() {
   const [loading, setLoading] = useState(true);
   const [selectedFaculty, setSelectedFaculty] = useState(null);
   const [showDetailModal, setShowDetailModal] = useState(false);
+
+  const buildRoster = useCallback((faculty, activities, maxHours) => {
+    return faculty.map(f => {
+      const fac_acts = activities.filter(a => a.faculty_id === f.id);
+      const totalFte = fac_acts.reduce((s, a) => s + parseFloat(a.fte_value || 0), 0);
+      return {
+        ...f,
+        fte: Math.round(totalFte * 10) / 10,
+        capped_fte: Math.round(Math.min(totalFte, maxHours) * 10) / 10,
+        status: totalFte > maxHours ? 'Overload' : totalFte >= maxHours - 2 ? 'Warning' : 'Compliant',
+        activities: fac_acts,
+      };
+    });
+  }, []);
+
+  const [allFaculty, setAllFaculty] = useState([]);
+  const [allActivities, setAllActivities] = useState([]);
+  const [maxHours, setMaxHours] = useState(40);
 
   useEffect(() => { loadData(); }, []);
 
@@ -24,25 +42,41 @@ export default function DeanPage() {
 
       const settings = {};
       (settingsData || []).forEach(s => { settings[s.key] = s.value; });
-      const maxHours = parseFloat(settings.max_weekly_hours || '40');
-
-      const rosterData = faculty.map(f => {
-        const fac_acts = activities.filter(a => a.faculty_id === f.id);
-        const totalFte = fac_acts.reduce((s, a) => s + parseFloat(a.fte_value || 0), 0);
-        return {
-          ...f,
-          fte: Math.round(totalFte * 10) / 10,
-          capped_fte: Math.round(Math.min(totalFte, maxHours) * 10) / 10,
-          status: totalFte > maxHours ? 'Overload' : totalFte >= maxHours - 2 ? 'Warning' : 'Compliant',
-          activities: fac_acts,
-        };
-      });
-      setRoster(rosterData);
+      const max = parseFloat(settings.max_weekly_hours || '40');
+      setMaxHours(max);
+      setAllFaculty(faculty);
+      setAllActivities(activities);
+      setRoster(buildRoster(faculty, activities, max));
     } catch (err) {
       showToast('Failed to load roster.', 'error');
     }
     setLoading(false);
   }
+
+  // ─── Realtime: auto-update when activities change ────────────────
+  useEffect(() => {
+    const channel = supabase
+      .channel('dean-activities-sync')
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'activities' }, (payload) => {
+        if (payload.eventType === 'INSERT') {
+          setAllActivities(prev => {
+            const updated = [payload.new, ...prev];
+            setRoster(buildRoster(allFaculty, updated, maxHours));
+            return updated;
+          });
+          showToast('Faculty roster updated — new activity logged.', 'success');
+        } else if (payload.eventType === 'DELETE') {
+          setAllActivities(prev => {
+            const updated = prev.filter(a => a.id !== payload.old.id);
+            setRoster(buildRoster(allFaculty, updated, maxHours));
+            return updated;
+          });
+        }
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [allFaculty, maxHours, buildRoster, showToast]);
 
   if (loading) return <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', height: '60vh' }}><div className="spinner"></div></div>;
 
@@ -51,7 +85,10 @@ export default function DeanPage() {
       <header className="header-bar">
         <div>
           <h1 style={{ fontSize: '1.8rem' }}>Faculty Roster</h1>
-          <p style={{ color: 'var(--text-muted)' }}>Workload and compliance status for all faculty.</p>
+          <p style={{ color: 'var(--text-muted)' }}>
+            Workload and compliance status for all faculty.
+            <span className="badge badge-success" style={{ marginLeft: 8 }}><span className="pulse" style={{ marginRight: 4 }}></span> Live</span>
+          </p>
         </div>
         <button className="btn btn-primary" onClick={() => window.print()}>
           <i className="fa-solid fa-print"></i> Print

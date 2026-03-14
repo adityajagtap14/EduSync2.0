@@ -163,7 +163,7 @@ function LoginPage() {
                 <p><i className="fa-solid fa-circle-info"></i> Quick access:</p>
                 <div className="demo-list">
                   <span onClick={() => fillDemo('dean@edusync.edu', 'dean123')}>Dean</span>
-                  <span onClick={() => fillDemo('faculty@edusync.edu', 'faculty123')}>Faculty</span>
+                  <span onClick={() => fillDemo('sharma@edusync.edu', 'faculty123')}>Faculty</span>
                   <span onClick={() => fillDemo('admin@edusync.edu', 'admin123')}>Admin</span>
                 </div>
               </div>

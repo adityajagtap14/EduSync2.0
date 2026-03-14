@@ -30,6 +30,35 @@ export default function AdminPage() {
     setLoading(false);
   }
 
+  // ─── Realtime: sync users and settings changes ───────────────────
+  useEffect(() => {
+    const channel = supabase
+      .channel('admin-sync')
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'users' }, (payload) => {
+        setUsers(prev => [payload.new, ...prev]);
+        showToast(`New user registered: ${payload.new.name}`, 'success');
+      })
+      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'users' }, (payload) => {
+        setUsers(prev => prev.filter(u => u.id !== payload.old.id));
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'settings' }, () => {
+        // Reload settings when changed
+        loadSettingsOnly();
+      })
+      .subscribe();
+
+    return () => { supabase.removeChannel(channel); };
+  }, [showToast]);
+
+  async function loadSettingsOnly() {
+    const { data } = await supabase.from('settings').select('*');
+    if (data) {
+      const s = {};
+      data.forEach(row => { s[row.key] = row.value; });
+      setSettings(prev => ({ ...prev, ...s }));
+    }
+  }
+
   async function handleSave(e) {
     e.preventDefault();
     setSaving(true);
@@ -62,11 +91,13 @@ export default function AdminPage() {
       <header className="header-bar">
         <div>
           <h1 style={{ fontSize: '1.8rem' }}>Settings</h1>
-          <p style={{ color: 'var(--text-muted)' }}>Manage system parameters and user accounts.</p>
+          <p style={{ color: 'var(--text-muted)' }}>
+            Manage system parameters and user accounts.
+            <span className="badge badge-success" style={{ marginLeft: 8 }}><span className="pulse" style={{ marginRight: 4 }}></span> Live</span>
+          </p>
         </div>
       </header>
 
-      {/* FTE Multipliers */}
       <div className="card" style={{ maxWidth: '800px' }}>
         <h3 style={{ marginBottom: '1.5rem', color: 'var(--primary)' }}>FTE Multipliers</h3>
         <form onSubmit={handleSave}>
@@ -90,7 +121,6 @@ export default function AdminPage() {
         </form>
       </div>
 
-      {/* User Management */}
       <div className="card">
         <h3 style={{ marginBottom: '1.5rem', color: 'var(--primary)' }}>User Accounts</h3>
         <table>
@@ -105,12 +135,7 @@ export default function AdminPage() {
                 <td><span className="badge badge-neutral" style={{ textTransform: 'capitalize' }}>{u.role}</span></td>
                 <td>{new Date(u.created_at).toLocaleDateString('en-IN', { month: 'short', day: 'numeric', year: 'numeric' })}</td>
                 <td>
-                  <button
-                    className="btn btn-outline"
-                    style={{ padding: '2px 8px', fontSize: '0.75rem', color: 'var(--danger)', borderColor: 'var(--danger)' }}
-                    onClick={() => handleDeleteUser(u.id)}
-                    title="Delete user"
-                  >
+                  <button className="btn btn-outline" style={{ padding: '2px 8px', fontSize: '0.75rem', color: 'var(--danger)', borderColor: 'var(--danger)' }} onClick={() => handleDeleteUser(u.id)} title="Delete user">
                     <i className="fa-solid fa-trash"></i>
                   </button>
                 </td>
